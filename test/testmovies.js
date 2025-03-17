@@ -1,103 +1,104 @@
-let envPath = __dirname + "/../.env";
-require('dotenv').config({ path: envPath });
+let envPath = __dirname + "/../.env"
+require('dotenv').config({path:envPath});
 let chai = require('chai');
 let chaiHttp = require('chai-http');
 let server = require('../server');
-let User = require('../Users');
-let Movie = require('../Movies');
+let User = require('../models/Users');
+let Movie = require('../models/Movies');
 chai.should();
 
 chai.use(chaiHttp);
 
-const testData = {
-    user: {
-        name: 'test2',
-        username: 'email2@email.com',
-        password: '123@abc'
-    },
-    movie: {
-        title: 'Alice in Wonderland',
-        releaseDate: 2010,
-        genre: 'Fantasy',
-        actors: [
-            { actorName: 'Mia Wasikowska', characterName: 'Alice Kingsleigh' },
-            { actorName: 'Johnny Depp', characterName: 'Mad Hatter' },
-            { actorName: 'Helena Bonham Carter', characterName: 'Red Queen' }
-        ]
-    }
-};
+let login_details = {
+    name: 'test2',
+    username: 'email2@email.com',
+    password: '123@abc'
+}
 
+let movie_details = {
+    title: 'Alice in Wonderland',
+    releaseDate: 2010,
+    genre: 'Fantasy',
+    actors: [ { actorName: 'Mia Wasikowska', characterName: 'Alice Kingsleigh' }, { actorName: 'Johnny Depp', characterName: 'Mad Hatter' }, { actorName: 'Helena Bonham Carter', characterName: 'Red Queen' } ]
+}
 
-let token = '';
+let token = ''
 
 describe('Test Movie Routes', () => {
-    before(async () => {
-        try {
-            await Promise.all([
-                User.deleteOne({ name: 'test2' }),
-                Movie.deleteOne({ title: 'Alice in Wonderland' })
-            ]);
-        } catch (error) {
-            console.error("Error in setup:", error);
-            throw error;
-        }
-    });
-
-    describe('/signup and authentication', () => {
-        it('should register user, login, and get token', async () => {
-            const signupRes = await chai.request(server)
-                .post('/signup')
-                .send(testData.user);
-            
-            signupRes.should.have.status(201);
-            signupRes.body.success.should.be.eql(true);
-
-            const signinRes = await chai.request(server)
-                .post('/signin')
-                .send(testData.user);
-                
-            signinRes.should.have.status(200);
-            signinRes.body.should.have.property('token');
-            token = signinRes.body.token;
+   before((done) => {
+        User.deleteOne({ name: 'test2'}, function(err, user) {
+            if (err) throw err;
         });
+       
+        Movie.deleteOne({ title: 'Alice in Wonderland'}, function(err, user) {
+            if (err) throw err;
+        });
+       done();
+    })
+
+    after((done) => { 
+        User.deleteOne({ name: 'test2'}, function(err, user) {
+            if (err) throw err;
+        });
+       
+        Movie.deleteOne({ title: 'Alice in Wonderland'}, function(err, user) {
+            if (err) throw err;
+        });
+        done();
+    })
+
+    describe('/signup', () => {
+        it('it should register, login and check our token', (done) => {
+          chai.request(server)
+              .post('/signup')
+              .send(login_details)
+              .end((err, res) =>{
+                res.should.have.status(200);
+                res.body.success.should.be.eql(true);
+        
+                chai.request(server)
+                    .post('/signin')
+                    .send(login_details)
+                    .end((err, res) => {
+                        res.should.have.status(200);
+                        res.body.should.have.property('token');
+                        token = res.body.token;
+                        done();
+                    })
+              })
+        })
     });
 
-    describe('Movie Operations', () => {
-        it('should add a new movie', async () => {
-            const res = await chai.request(server)
+    describe('POST Movies', () => {
+        it('it return all movies', (done) => {
+            chai.request(server)
                 .post('/movies')
                 .set('Authorization', token)
-                .send(testData.movie);
-                
-            res.should.have.status(201);
-            res.body.should.be.an('object');
-            res.body.should.have.property('movie');
-            res.body.movie.should.have.property('title', testData.movie.title);
-        });
-
-        it('should retrieve all movies', async () => {
-            const res = await chai.request(server)
-                .get('/movies')
-                .set('Authorization', token);
-                
-            res.should.have.status(200);
-            res.body.should.be.an('array');
-            res.body.should.have.length.of.at.least(1);
-            
-            const addedMovie = res.body.find(m => m.title === testData.movie.title);
-            addedMovie.should.have.property('genre', testData.movie.genre);
-        });
+                .send(movie_details)
+                .end((err, res) => {
+                    res.should.have.status(200);
+                    done();
+                })
+        })
     });
 
-    after(async () => {
-        try {
-            await Promise.all([
-                User.deleteOne({ name: 'test2' }),
-                Movie.deleteOne({ title: 'Alice in Wonderland' })
-            ]);
-        } catch (error) {
-            console.error("Error in cleanup:", error);
-            throw error;
-        }
+    describe('GET Movies', () => {
+        it('it return all movies', (done) => {
+            chai.request(server)
+                .get('/movies')
+                .set('Authorization', token)
+                .send()
+                .end((err, res) => {
+                    res.should.have.status(200);
+                    res.body.should.be.an('array');
+                    res.body.forEach(movie => {
+                        movie.should.have.property('title')
+                        movie.should.have.property('releaseDate')
+                        movie.should.have.property('genre')
+                        movie.should.have.property('actors')
+                    });
+                    done();
+                })
+        })
     });
 });

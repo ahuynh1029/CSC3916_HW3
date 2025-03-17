@@ -1,3 +1,4 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 const bcrypt = require('bcrypt'); // Use bcrypt, not bcrypt-nodejs
@@ -17,7 +18,7 @@ const connectDB = async () => {
 connectDB();
 
 
-const UserSchema = new Schema({
+const UserSchema = new mongoose.Schema({
     name: String,
     username: { type: String, required: true, index: { unique: true } },
     password: { type: String, required: true, select: false }

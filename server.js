@@ -1,11 +1,10 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const passport = require('passport');
-const authJwtController = require('./auth_jwt'); // You're not using authController, consider removing it
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const User = require('./Users');
-const Movie = require('./Movies'); // You're not using Movie, consider removing it
+const authJwtController = require('./auth_jwt');
 
 const app = express();
 app.use(cors());
@@ -17,10 +16,15 @@ app.use(passport.initialize());
 const router = express.Router();
 
 // Removed getJSONObjectForMovieRequirement as it's not used
+const { body, validationResult } = require('express-validator');
 
-router.post('/signup', async (req, res) => { // Use async/await
-  if (!req.body.username || !req.body.password) {
-    return res.status(400).json({ success: false, msg: 'Please include both username and password to signup.' }); // 400 Bad Request
+router.post('/signup', [
+  body('username').isLength({ min: 5 }).withMessage('Username must be at least 5 characters long'),
+  body('password').isLength({ min: 5 }).withMessage('Password must be at least 5 characters long')
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, errors: errors.array() });
   }
 
   try {
@@ -80,6 +84,27 @@ app.use('/', router);
 const PORT = process.env.PORT || 8080; // Define PORT before using it
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
+});
+
+const Movie = require('./Movies');
+
+app.post('/movies', authJwtController.isAuthenticated, async (req, res) => {
+    try {
+        const newMovie = new Movie(req.body);
+        await newMovie.save();
+        res.status(201).json({ success: true, movie: newMovie });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+});
+
+app.get('/movies', authJwtController.isAuthenticated, async (req, res) => {
+    try {
+        const movies = await Movie.find();
+        res.status(200).json(movies);
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Error retrieving movies' });
+    }
 });
 
 module.exports = app; // for testing only
